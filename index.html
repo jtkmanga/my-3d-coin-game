@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Coin Collector Game</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            margin: 0;
+            padding: 0;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #1a1a2e;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        /* HUD UI */
+        #ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 15px;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .stat-card {
+            background: rgba(22, 33, 62, 0.85);
+            border: 2px solid #e94560;
+            border-radius: 12px;
+            padding: 10px 18px;
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 18px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(5px);
+            pointer-events: auto;
+        }
+        .stat-card span {
+            color: #f1c40f;
+        }
+        /* Mobile Controls */
+        #touch-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            pointer-events: auto;
+            touch-action: none;
+        }
+        #joystick-stick {
+            position: absolute;
+            top: 35px;
+            left: 35px;
+            width: 50px;
+            height: 50px;
+            background: #e94560;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #e94560;
+            transition: transform 0.05s ease-out;
+        }
+        #jump-btn {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            width: 75px;
+            height: 75px;
+            background: rgba(233, 69, 96, 0.85);
+            border: 3px solid #ffffff;
+            border-radius: 50%;
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+            box-shadow: 0 4px 15px rgba(233, 69, 96, 0.5);
+            touch-action: manipulation;
+        }
+        #jump-btn:active {
+            transform: scale(0.92);
+            background: #0f3460;
+        }
+        /* Start Screen Overlay */
+        #start-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 52, 96, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+        #start-overlay h1 {
+            font-size: 32px;
+            color: #f1c40f;
+            margin-bottom: 15px;
+            text-shadow: 0 0 10px rgba(241, 196, 15, 0.5);
+        }
+        #start-overlay p {
+            font-size: 16px;
+            margin-bottom: 25px;
+            color: #dddddd;
+            max-width: 400px;
+            line-height: 1.5;
+        }
+        .btn-start {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 5px 20px rgba(233, 69, 96, 0.6);
+            transition: all 0.2s;
+        }
+        .btn-start:hover {
+            transform: scale(1.05);
+            background: #ff5e78;
+        }
+    </style>
+    <!-- Three.js Library via CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-overlay">
+        <div class="hud-top">
+            <div class="stat-card">🪙 เหรียญ: <span id="score-text">0</span></div>
+            <div class="stat-card">⏱️ เกิดใหม่ใน: <span id="respawn-text">60s</span></div>
+        </div>
+        <div id="touch-controls">
+            <div id="joystick-stick"></div>
+        </div>
+        <div id="jump-btn">กระโดด</div>
+    </div>
+
+    <div id="start-overlay">
+        <h1>🎮 3D Coin Collector</h1>
+        <p>สะสมเหรียญให้ได้มากที่สุดบนแมพ 3D!<br>ใช้ Joystick ด้านซ้ายเพื่อเดิน และกดปุ่มขวาเพื่อกระโดด</p>
+        <button class="btn-start" onclick="startGame()">เริ่มเล่นเกม</button>
+    </div>
+
+    <script>
+        // Web Audio API Sound Generator
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new AudioContext();
+            }
+        }
+
+        function playCoinSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(987.77, audioCtx.currentTime); // B5
+            osc.frequency.setValueAtTime(1318.51, audioCtx.currentTime + 0.08); // E6
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.25);
+        }
+
+        function playJumpSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.15);
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.15);
+        }
+
+        // Three.js Game Engine Setup
+        let scene, camera, renderer, player;
+        let coins = [];
+        let score = 0;
+        let respawnTime = 60;
+        let moveJoystick = { x: 0, y: 0 };
+        let playerVelocity = { x: 0, y: 0, z: 0 };
+        let isGrounded = true;
+        const gravity = 0.015;
+        const jumpStrength = 0.35;
+        const moveSpeed = 0.18;
+
+        function initScene() {
+            const container = document.getElementById('canvas-container');
+            
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+            scene.fog = new THREE.FogExp2(0x1a1a2e, 0.015);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(20, 40, 20);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 1024;
+            dirLight.shadow.mapSize.height = 1024;
+            scene.add(dirLight);
+
+            // Floor Grid / Platform
+            const floorGeo = new THREE.BoxGeometry(60, 2, 60);
+            const floorMat = new THREE.MeshStandardMaterial({ color: 0x16213e, roughness: 0.8 });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.position.y = -1;
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            // Grid Helper
+            const grid = new THREE.GridHelper(60, 30, 0xe94560, 0x0f3460);
+            grid.position.y = 0.01;
+            scene.add(grid);
+
+            // Player Setup (Voxel Style Capsule/Cube Character)
+            const playerGeo = new THREE.BoxGeometry(1.2, 2, 1.2);
+            const playerMat = new THREE.MeshStandardMaterial({ color: 0xe94560, roughness: 0.3 });
+            player = new THREE.Mesh(playerGeo, playerMat);
+            player.position.set(0, 1, 0);
+            player.castShadow = true;
+            scene.add(player);
+
+            // Create Initial Coins
+            spawnCoins();
+
+            // Respawn Timer
+            setInterval(() => {
+                respawnTime--;
+                if (respawnTime <= 0) {
+                    respawnCoins();
+                    respawnTime = 60;
+                }
+                document.getElementById('respawn-text').innerText = respawnTime + 's';
+            }, 1000);
+
+            // Setup Touch & Keyboard Listeners
+            setupControls();
+
+            // Resize Event
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function spawnCoins() {
+            const coinGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.2, 16);
+            const coinMat = new THREE.MeshStandardMaterial({ color: 0xf1c40f, metalness: 0.8, roughness: 0.2 });
+
+            for (let i = 0; i < 15; i++) {
+                const coin = new THREE.Mesh(coinGeo, coinMat);
+                coin.rotation.x = Math.PI / 2;
+                
+                // Random position
+                const x = (Math.random() - 0.5) * 45;
+                const z = (Math.random() - 0.5) * 45;
+                coin.position.set(x, 1.2, z);
+                coin.castShadow = true;
+                
+                scene.add(coin);
+                coins.push(coin);
+            }
+        }
+
+        function respawnCoins() {
+            coins.forEach(c => scene.remove(c));
+            coins = [];
+            spawnCoins();
+        }
+
+        // Touch Joystick Logic
+        function setupControls() {
+            const touchZone = document.getElementById('touch-controls');
+            const stick = document.getElementById('joystick-stick');
+            let touchId = null;
+            let startX = 0, startY = 0;
+
+            touchZone.addEventListener('touchstart', (e) => {
+                const touch = e.changedTouches[0];
+                touchId = touch.identifier;
+                startX = touch.clientX;
+                startY = touch.clientY;
+            });
+
+            touchZone.addEventListener('touchmove', (e) => {
+                for (let touch of e.changedTouches) {
+                    if (touch.identifier === touchId) {
+                        let dx = touch.clientX - startX;
+                        let dy = touch.clientY - startY;
+                        let dist = Math.sqrt(dx * dx + dy * dy);
+                        let maxDist = 35;
+
+                        if (dist > maxDist) {
+                            dx = (dx / dist) * maxDist;
+                            dy = (dy / dist) * maxDist;
+                        }
+
+                        stick.style.transform = `translate(${dx}px, ${dy}px)`;
+                        moveJoystick.x = dx / maxDist;
+                        moveJoystick.y = dy / maxDist;
+                    }
+                }
+            });
+
+            const resetJoystick = () => {
+                stick.style.transform = `translate(0px, 0px)`;
+                moveJoystick.x = 0;
+                moveJoystick.y = 0;
+                touchId = null;
+            };
+
+            touchZone.addEventListener('touchend', resetJoystick);
+            touchZone.addEventListener('touchcancel', resetJoystick);
+
+            // Jump Button
+            const jumpBtn = document.getElementById('jump-btn');
+            jumpBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                doJump();
+            });
+
+            // Keyboard Fallback for PC Testing
+            const keys = {};
+            window.addEventListener('keydown', (e) => {
+                keys[e.key] = true;
+                if (e.key === ' ' || e.key === 'Spacebar') doJump();
+            });
+            window.addEventListener('keyup', (e) => { keys[e.key] = false; });
+
+            // Keyboard update loop hook
+            window.keyboardUpdate = () => {
+                if (keys['ArrowUp'] || keys['w'] || keys['W']) moveJoystick.y = -1;
+                else if (keys['ArrowDown'] || keys['s'] || keys['S']) moveJoystick.y = 1;
+                else if (!touchId) moveJoystick.y = 0;
+
+                if (keys['ArrowLeft'] || keys['a'] || keys['A']) moveJoystick.x = -1;
+                else if (keys['ArrowRight'] || keys['d'] || keys['D']) moveJoystick.x = 1;
+                else if (!touchId) moveJoystick.x = 0;
+            };
+        }
+
+        function doJump() {
+            if (isGrounded) {
+                playerVelocity.y = jumpStrength;
+                isGrounded = false;
+                playJumpSound();
+            }
+        }
+
+        function startGame() {
+            initAudio();
+            document.getElementById('start-overlay').style.display = 'none';
+            initScene();
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (window.keyboardUpdate) window.keyboardUpdate();
+
+            // Player Physics & Movement
+            player.position.x += moveJoystick.x * moveSpeed;
+            player.position.z += moveJoystick.y * moveSpeed;
+
+            // Clamp inside floor bounds
+            player.position.x = Math.max(-28, Math.min(28, player.position.x));
+            player.position.z = Math.max(-28, Math.min(28, player.position.z));
+
+            // Gravity & Jump
+            player.position.y += playerVelocity.y;
+            if (player.position.y > 1) {
+                playerVelocity.y -= gravity;
+                isGrounded = false;
+            } else {
+                player.position.y = 1;
+                playerVelocity.y = 0;
+                isGrounded = true;
+            }
+
+            // Camera Tracking
+            camera.position.x = player.position.x;
+            camera.position.y = player.position.y + 12;
+            camera.position.z = player.position.z + 16;
+            camera.lookAt(player.position.x, player.position.y, player.position.z);
+
+            // Rotate Coins & Collision Check
+            coins.forEach((coin, index) => {
+                coin.rotation.z += 0.03;
+
+                // Collision distance
+                const dist = player.position.distanceTo(coin.position);
+                if (dist < 1.6) {
+                    scene.remove(coin);
+                    coins.splice(index, 1);
+                    score += 10;
+                    document.getElementById('score-text').innerText = score;
+                    playCoinSound();
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            if (!camera || !renderer) return;
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    </script>
+</body>
+</html>
