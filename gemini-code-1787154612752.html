@@ -1,0 +1,108 @@
+<!-- แถบเมนูล็อกอินและแสดงคะแนน (วางไว้ส่วนบนสุดของ <body>) -->
+<div id="auth-container" style="background: rgba(0,0,0,0.8); color: white; padding: 15px; position: fixed; top: 10px; left: 10px; z-index: 9999; border-radius: 8px; font-family: sans-serif;">
+  <div id="logged-out-ui">
+    <h3 style="margin: 0 0 10px 0;">เข้าสู่ระบบ / สมัครสมาชิก</h3>
+    <input type="email" id="email" placeholder="Email" style="margin-bottom: 5px; padding: 5px; width: 180px;"><br>
+    <input type="password" id="password" placeholder="Password" style="margin-bottom: 10px; padding: 5px; width: 180px;"><br>
+    <button id="btn-login" style="padding: 5px 10px; cursor: pointer;">เข้าสู่ระบบ</button>
+    <button id="btn-register" style="padding: 5px 10px; cursor: pointer;">สมัครสมาชิก</button>
+  </div>
+
+  <div id="logged-in-ui" style="display: none;">
+    <p style="margin: 0 0 5px 0;">ผู้เล่น: <span id="user-email"></span></p>
+    <p style="margin: 0 0 10px 0; font-weight: bold; color: #ffd700;">คะแนนสูงสุด: <span id="user-highscore">0</span></p>
+    <button id="btn-logout" style="padding: 5px 10px; cursor: pointer;">ออกจากระบบ</button>
+  </div>
+</div>
+
+<!-- ระบบ Firebase JavaScript -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+  import { getDatabase, ref, set, get, child, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+  // ตั้งค่า Firebase ของคุณ
+  const firebaseConfig = {
+    apiKey: "AIzaSyCwn4rJ48I_bsVI2Ez59szQJubShvhO1SE",
+    authDomain: "lucky-game-6936b.firebaseapp.com",
+    databaseURL: "https://lucky-game-6936b-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "lucky-game-6936b",
+    storageBucket: "lucky-game-6936b.firebasestorage.app",
+    messagingSenderId: "541211602508",
+    appId: "1:541211602508:web:b41b55fb5462269fbc4ee9"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getDatabase(app);
+
+  let currentUser = null;
+  let currentHighScore = 0;
+
+  // ตรวจสอบสถานะการเข้าสู่ระบบ
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      currentUser = user;
+      document.getElementById("logged-out-ui").style.display = "none";
+      document.getElementById("logged-in-ui").style.display = "block";
+      document.getElementById("user-email").innerText = user.email;
+
+      // ดึงคะแนนสูงสุดจาก Database
+      const snapshot = await get(child(ref(db), `users/${user.uid}`));
+      if (snapshot.exists()) {
+        currentHighScore = snapshot.val().highScore || 0;
+      } else {
+        currentHighScore = 0;
+        // สร้างข้อมูลผู้เล่นใหม่
+        set(ref(db, `users/${user.uid}`), {
+          email: user.email,
+          highScore: 0
+        });
+      }
+      document.getElementById("user-highscore").innerText = currentHighScore;
+    } else {
+      currentUser = null;
+      document.getElementById("logged-out-ui").style.display = "block";
+      document.getElementById("logged-in-ui").style.display = "none";
+    }
+  });
+
+  // ปุ่มสมัครสมาชิก
+  document.getElementById("btn-register").onclick = async () => {
+    const email = document.getElementById("email").value;
+    const pass = document.getElementById("password").value;
+    try {
+      await createUserWithEmailAndPassword(auth, email, pass);
+      alert("สมัครสมาชิกสำเร็จ!");
+    } catch (err) {
+      alert("ข้อผิดพลาด: " + err.message);
+    }
+  };
+
+  // ปุ่มเข้าสู่ระบบ
+  document.getElementById("btn-login").onclick = async () => {
+    const email = document.getElementById("email").value;
+    const pass = document.getElementById("password").value;
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+    } catch (err) {
+      alert("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
+    }
+  };
+
+  // ปุ่มออกจากระบบ
+  document.getElementById("btn-logout").onclick = () => signOut(auth);
+
+  // **ฟังก์ชันอัปเดตคะแนนเมื่อจบเกม (เรียกใช้ฟังก์ชันนี้ในโค้ดเกมของคุณ)**
+  window.saveHighScore = async function(score) {
+    if (!currentUser) return;
+    if (score > currentHighScore) {
+      currentHighScore = score;
+      document.getElementById("user-highscore").innerText = currentHighScore;
+      await update(ref(db, `users/${currentUser.uid}`), {
+        highScore: currentHighScore
+      });
+      alert("ยินดีด้วย! คุณทำสถิติคะแนนสูงสุดใหม่: " + currentHighScore);
+    }
+  };
+</script>
