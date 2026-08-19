@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Voxel Adventure 3D</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- Google Font (Kanit) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            font-family: 'Kanit', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #1a102f;
+        }
+
+        #game-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Virtual Joystick Styles */
+        .joystick-container {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(8px);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            touch-action: none;
+            z-index: 20;
+        }
+
+        .joystick-handle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            pointer-events: none;
+        }
+
+        /* 3D Floating Name Tag */
+        .name-tag {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            background: rgba(15, 23, 42, 0.85);
+            border: 1.5px solid #f59e0b;
+            color: #ffffff;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 700;
+            white-space: nowrap;
+            pointer-events: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: opacity 0.2s ease;
+            z-index: 10;
+        }
+
+        /* Wheel Pointer Arrow */
+        .wheel-pointer {
+            width: 0;
+            height: 0;
+            border-left: 18px solid transparent;
+            border-right: 18px solid transparent;
+            border-top: 30px solid #ef4444;
+            filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.4));
+        }
+
+        /* Custom Scrollbar for Leaderboard */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(245, 158, 11, 0.5);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="relative">
+
+    <!-- Canvas for Three.js Rendering -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- Floating 2D Player Name Tag -->
+    <div id="player-nametag" class="name-tag hidden">
+        <i class="fa-solid fa-crown text-amber-400 text-xs"></i>
+        <span id="nametag-text">Player</span>
+    </div>
+
+    <!-- START SCREEN OVERLAY -->
+    <div id="start-screen" class="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4">
+        <div class="max-w-md w-full bg-slate-900 border-2 border-amber-500/40 rounded-3xl p-6 sm:p-8 text-center shadow-2xl relative overflow-hidden">
+            <!-- Decorative Sunset Gradient Blob -->
+            <div class="absolute -top-20 -left-20 w-48 h-48 bg-amber-500/20 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-20 -right-20 w-48 h-48 bg-rose-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+            <!-- Title -->
+            <div class="mb-6 relative">
+                <div class="inline-block bg-gradient-to-r from-amber-500 to-rose-500 text-transparent bg-clip-text">
+                    <h1 class="text-4xl sm:text-5xl font-extrabold tracking-wider uppercase">VOXEL WORLD</h1>
+                </div>
+                <p class="text-slate-400 text-sm mt-1">3D Sunset Adventure & Lucky Wheel</p>
+            </div>
+
+            <!-- Login Section -->
+            <div id="auth-section" class="space-y-4">
+                <!-- Google Login Button -->
+                <button id="btn-google-login" onclick="handleGoogleLogin()" class="w-full flex items-center justify-center gap-3 bg-white text-slate-800 hover:bg-slate-100 font-bold py-3.5 px-4 rounded-xl shadow-lg transition duration-200 transform active:scale-95">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                    </svg>
+                    <span>เข้าสู่ระบบด้วย Google</span>
+                </button>
+
+                <!-- Profile Info (Hidden until logged in) -->
+                <div id="user-profile-info" class="hidden bg-slate-800/80 p-4 rounded-2xl border border-slate-700/60 flex items-center gap-4">
+                    <img id="user-avatar" src="https://placehold.co/100x100/f59e0b/ffffff?text=User" class="w-12 h-12 rounded-full border-2 border-amber-400 object-cover" alt="Avatar">
+                    <div class="text-left flex-1 min-w-0">
+                        <div id="user-email" class="text-xs text-amber-400 font-semibold truncate">user@gmail.com</div>
+                        <div class="text-xs text-slate-400">เข้าสู่ระบบสำเร็จแล้ว</div>
+                    </div>
+                    <button onclick="handleLogout()" class="text-xs text-rose-400 hover:text-rose-300 font-semibold px-2 py-1">เปลี่ยน</button>
+                </div>
+
+                <!-- Username Input -->
+                <div class="text-left">
+                    <label class="block text-xs font-semibold text-slate-300 mb-1 ml-1">ชื่อผู้เล่นในเกม (Player Name)</label>
+                    <input type="text" id="input-username" placeholder="กรอกชื่อของคุณ..." maxlength="12" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500 font-semibold transition">
+                </div>
+
+                <!-- Start Game Button -->
+                <button id="btn-start-game" onclick="startGame()" class="w-full bg-gradient-to-r from-amber-500 via-amber-600 to-rose-600 hover:from-amber-400 hover:to-rose-500 text-white font-extrabold py-4 px-6 rounded-xl shadow-xl shadow-amber-600/30 transition transform active:scale-95 text-lg flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-gamepad"></i>
+                    <span>เริ่มเล่นเกม</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- IN-GAME HUD OVERLAY -->
+    <div id="game-hud" class="absolute inset-0 z-30 pointer-events-none hidden flex flex-col justify-between p-4">
+        <!-- Top Navigation Bar -->
+        <div class="flex items-start justify-between w-full pointer-events-auto">
+            <!-- Left Controls: Home & Settings -->
+            <div class="flex items-center gap-3">
+                <!-- Home Button -->
+                <button onclick="openHomeConfirmModal()" class="w-12 h-12 bg-slate-900/80 backdrop-blur-md border-2 border-amber-500/60 text-amber-400 hover:text-amber-300 hover:bg-slate-800 rounded-2xl flex items-center justify-center shadow-lg transition active:scale-90">
+                    <i class="fa-solid fa-house text-xl"></i>
+                </button>
+
+                <!-- Audio Toggle Button -->
+                <button onclick="toggleAudio()" id="btn-audio-toggle" class="w-12 h-12 bg-slate-900/80 backdrop-blur-md border-2 border-amber-500/60 text-amber-400 hover:text-amber-300 hover:bg-slate-800 rounded-2xl flex items-center justify-center shadow-lg transition active:scale-90">
+                    <i id="audio-icon" class="fa-solid fa-volume-high text-xl"></i>
+                </button>
+
+                <!-- Score Counter Widget -->
+                <div class="bg-slate-900/80 backdrop-blur-md border-2 border-amber-500/60 text-white px-4 py-2 rounded-2xl flex items-center gap-3 shadow-lg">
+                    <div class="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-400 flex items-center justify-center">
+                        <i class="fa-solid fa-coins text-amber-400 text-base"></i>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-amber-300 uppercase font-semibold leading-none">คะแนนสะสม</div>
+                        <div id="hud-score" class="text-xl font-extrabold text-amber-400 leading-tight">0</div>
+                    </div>
+                </div>
+
+                <!-- Lucky Box Cooldown Timer Widget -->
+                <div class="bg-slate-900/80 backdrop-blur-md border-2 border-amber-500/60 text-white px-4 py-2 rounded-2xl flex items-center gap-3 shadow-lg">
+                    <div class="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-400 flex items-center justify-center">
+                        <i class="fa-solid fa-box-open text-amber-400 text-base"></i>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-amber-300 uppercase font-semibold leading-none">กล่องสุ่มถัดไป</div>
+                        <div id="hud-box-timer" class="text-sm font-extrabold text-emerald-400 leading-tight">พร้อมเปิด!</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right HUD: Top 5 Leaderboard Box -->
+            <div class="bg-slate-900/80 backdrop-blur-md border-2 border-amber-500/60 rounded-2xl p-3 w-48 sm:w-56 shadow-lg text-white">
+                <div class="flex items-center justify-between border-b border-slate-700/60 pb-2 mb-2">
+                    <div class="flex items-center gap-1.5 text-xs font-bold text-amber-400">
+                        <i class="fa-solid fa-trophy text-amber-400"></i>
+                        <span>5 อันดับสูงสุด</span>
+                    </div>
+                    <button onclick="openFullLeaderboard()" class="text-[10px] text-slate-400 hover:text-amber-300 underline font-medium">ดูทั้งหมด</button>
+                </div>
+                <!-- Mini Leaderboard List -->
+                <div id="mini-leaderboard-list" class="space-y-1.5 text-xs">
+                    <!-- Dynamic rendering -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Touch Controls Layer (Mobile) -->
+        <div class="relative w-full h-full pointer-events-none">
+            <!-- Virtual Joystick Zone (Bottom Left) -->
+            <div id="joystick-zone" class="joystick-container pointer-events-auto">
+                <div id="joystick-handle" class="joystick-handle"></div>
+            </div>
+
+            <!-- Action Buttons (Bottom Right) -->
+            <div class="absolute bottom-8 right-8 flex items-center gap-4 pointer-events-auto">
+                <!-- Jump Button -->
+                <button id="btn-jump" class="w-20 h-20 bg-gradient-to-tr from-amber-600 to-amber-400 text-white font-extrabold text-xl rounded-full border-4 border-white shadow-2xl flex items-center justify-center active:scale-90 transition">
+                    <i class="fa-solid fa-arrow-up text-2xl"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- EXIT CONFIRMATION MODAL -->
+    <div id="exit-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border-2 border-amber-500/50 rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl space-y-5">
+            <div class="w-16 h-16 bg-amber-500/20 border-2 border-amber-500 text-amber-400 rounded-full flex items-center justify-center mx-auto text-2xl">
+                <i class="fa-solid fa-door-open"></i>
+            </div>
+            <div>
+                <h3 class="text-xl font-bold text-white">คุณต้องการออกเกมไหม?</h3>
+                <p class="text-slate-400 text-sm mt-1">คะแนนปัจจุบันของคุณจะถูกบันทึกลงในตารางอันดับ</p>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="closeHomeConfirmModal()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl transition">เล่นต่อ</button>
+                <button onclick="confirmExitGame()" class="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-rose-600/30 transition">ยืนยัน (บันทึก)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LUCKY WHEEL MODAL -->
+    <div id="wheel-modal" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-slate-900 border-2 border-amber-500 rounded-3xl p-6 max-w-md w-full text-center shadow-2xl relative flex flex-col items-center">
+            <!-- Title Header -->
+            <div class="mb-4">
+                <span class="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-xs font-bold uppercase px-3 py-1 rounded-full">Mystery Lucky Box</span>
+                <h2 class="text-2xl font-extrabold text-white mt-1">วงล้อสุ่มไอเทมโชคดี!</h2>
+            </div>
+
+            <!-- Wheel Container -->
+            <div class="relative w-72 h-72 my-2 flex items-center justify-center">
+                <!-- Pointer -->
+                <div class="wheel-pointer absolute -top-3 z-20"></div>
+                <!-- Wheel Canvas -->
+                <canvas id="wheel-canvas" width="280" height="280" class="w-full h-full rounded-full shadow-2xl border-4 border-amber-400"></canvas>
+            </div>
+
+            <!-- Spin Result Display -->
+            <div id="wheel-result-msg" class="h-10 flex items-center justify-center text-amber-300 font-bold text-lg my-1">
+                กดปุ่มเพื่อเริ่มหมุนวงล้อ!
+            </div>
+
+            <!-- Action Button -->
+            <button id="btn-spin-wheel" onclick="spinWheel()" class="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white font-extrabold py-3.5 px-6 rounded-xl shadow-lg shadow-amber-600/40 text-lg transition active:scale-95">
+                <i class="fa-solid fa-rotate text-lg mr-2"></i> หมุนวงล้อ
+            </button>
+            <button id="btn-close-wheel" onclick="closeWheelModal()" class="hidden w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-3.5 px-6 rounded-xl shadow-lg shadow-emerald-600/40 text-lg transition active:scale-95">
+                รับรางวัล & เล่นต่อ
+            </button>
+        </div>
+    </div>
+
+    <!-- FULL LEADERBOARD MODAL -->
+    <div id="leaderboard-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border-2 border-amber-500/60 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2 text-amber-400 font-bold text-lg">
+                    <i class="fa-solid fa-trophy"></i>
+                    <span>ตารางคะแนนสูงสุด</span>
+                </div>
+                <button onclick="closeFullLeaderboard()" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Scrollable Leaderboard List -->
+            <div id="full-leaderboard-list" class="max-h-80 overflow-y-auto space-y-2 pr-1">
+                <!-- Dynamic ranking entries -->
+            </div>
+
+            <button onclick="closeFullLeaderboard()" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition">
+                ปิดหน้าต่าง
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Global Game State
+        const state = {
+            playerName: "Player1",
+            score: 0,
+            isLoggedIn: false,
+            userEmail: "",
+            userAvatar: "",
+            audioMuted: false,
+            isPlaying: false,
+            isPaused: false,
+            wheelSpinning: false,
+            wheelReward: null,
+            boxCooldownSeconds: 0
+        };
+
+        // Web Audio Synthesizer for Game Sound Effects
+        const audio = {
+            ctx: null,
+            muted: false,
+            init() {
+                if (!this.ctx) {
+                    const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtxClass) this.ctx = new AudioCtxClass();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+            playTone(freq, type, duration, startVol = 0.1, endVol = 0) {
+                if (this.muted) return;
+                this.init();
+                if (!this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(startVol, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(Math.max(endVol, 0.0001), this.ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch(e) {}
+            },
+            playStart() {
+                if (this.muted) return;
+                this.playTone(440, 'sine', 0.1, 0.15);
+                setTimeout(() => this.playTone(554.37, 'sine', 0.1, 0.15), 100);
+                setTimeout(() => this.playTone(659.25, 'sine', 0.2, 0.2), 200);
+            },
+            playJump() {
+                if (this.muted) return;
+                this.init();
+                if (!this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(160, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(420, this.ctx.currentTime + 0.15);
+                    gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.15);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.15);
+                } catch(e) {}
+            },
+            playCoin() {
+                if (this.muted) return;
+                this.playTone(987.77, 'triangle', 0.08, 0.15);
+                setTimeout(() => this.playTone(1318.51, 'triangle', 0.15, 0.2), 60);
+            },
+            playBoxHit() {
+                if (this.muted) return;
+                this.playTone(300, 'square', 0.1, 0.12);
+                setTimeout(() => this.playTone(600, 'square', 0.2, 0.18), 80);
+            },
+            playWheelTick() {
+                if (this.muted) return;
+                this.playTone(800, 'sine', 0.03, 0.06);
+            },
+            playReward() {
+                if (this.muted) return;
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, idx) => {
+                    setTimeout(() => this.playTone(freq, 'sine', 0.2, 0.2), idx * 100);
+                });
+            }
+        };
+
+        // Leaderboard Local Storage Handling
+        const DEFAULT_LEADERBOARD = [
+            { name: "VoxelKing", score: 12500 },
+            { name: "SunsetRunner", score: 8400 },
+            { name: "CubeMaster", score: 5200 },
+            { name: "BlockyHero", score: 3100 },
+            { name: "GoldHunter", score: 1800 }
+        ];
+
+        function getLeaderboard() {
+            const saved = localStorage.getItem('voxel_game_leaderboard');
+            if (saved) {
+                try { return JSON.parse(saved); } catch(e) {}
+            }
+            return DEFAULT_LEADERBOARD;
+        }
+
+        function saveScoreToLeaderboard(name, score) {
+            let board = getLeaderboard();
+            board.push({ name: name, score: score });
+            board.sort((a, b) => b.score - a.score);
+            board = board.slice(0, 20); // Keep top 20
+            localStorage.setItem('voxel_game_leaderboard', JSON.stringify(board));
+            updateLeaderboardUI();
+        }
+
+        function updateLeaderboardUI() {
+            const board = getLeaderboard();
+            
+            // Mini Leaderboard Top 5
+            const miniList = document.getElementById('mini-leaderboard-list');
+            miniList.innerHTML = '';
+            board.slice(0, 5).forEach((item, index) => {
+                const rankColor = index === 0 ? 'text-amber-400 font-extrabold' : (index === 1 ? 'text-slate-300 font-bold' : (index === 2 ? 'text-amber-600 font-bold' : 'text-slate-400'));
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between';
+                div.innerHTML = `
+                    <div class="flex items-center gap-1.5 truncate">
+                        <span class="w-4 text-[11px] ${rankColor}">${index + 1}.</span>
+                        <span class="truncate font-semibold text-slate-200">${item.name}</span>
+                    </div>
+                    <span class="font-bold ${rankColor} ml-2">${item.score.toLocaleString()}</span>
+                `;
+                miniList.appendChild(div);
+            });
+
+            // Full Leaderboard List
+            const fullList = document.getElementById('full-leaderboard-list');
+            fullList.innerHTML = '';
+            board.forEach((item, index) => {
+                const isTop3 = index < 3;
+                const bg = isTop3 ? 'bg-amber-500/10 border-amber-500/30' : 'bg-slate-800/60 border-slate-700/50';
+                const div = document.createElement('div');
+                div.className = `flex items-center justify-between p-3 rounded-xl border ${bg}`;
+                div.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center font-extrabold text-xs ${index===0?'text-amber-400':(index===1?'text-slate-300':(index===2?'text-amber-600':'text-slate-400'))}">
+                            ${index + 1}
+                        </div>
+                        <span class="font-bold text-white">${item.name}</span>
+                    </div>
+                    <span class="font-extrabold text-amber-400">${item.score.toLocaleString()} pts</span>
+                `;
+                fullList.appendChild(div);
+            });
+        }
+
+        function handleGoogleLogin() {
+            state.isLoggedIn = true;
+            state.userEmail = "gamer_" + Math.floor(1000 + Math.random() * 9000) + "@gmail.com";
+            state.playerName = "VoxelGamer" + Math.floor(100 + Math.random() * 900);
+            
+            document.getElementById('user-email').innerText = state.userEmail;
+            document.getElementById('input-username').value = state.playerName;
+            
+            document.getElementById('btn-google-login').classList.add('hidden');
+            document.getElementById('user-profile-info').classList.remove('hidden');
+        }
+
+        function handleLogout() {
+            state.isLoggedIn = false;
+            document.getElementById('btn-google-login').classList.remove('hidden');
+            document.getElementById('user-profile-info').classList.add('hidden');
+        }
+
+        function startGame() {
+            const inputName = document.getElementById('input-username').value.trim();
+            if (inputName) state.playerName = inputName;
+            
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-hud').classList.remove('hidden');
+            document.getElementById('player-nametag').classList.remove('hidden');
+            document.getElementById('nametag-text').innerText = state.playerName;
+
+            audio.playStart();
+            state.isPlaying = true;
+            state.isPaused = false;
+            state.score = 0;
+            updateScoreDisplay();
+
+            if (!scene) {
+                init3D();
+            }
+            animate();
+        }
+
+        function updateScoreDisplay() {
+            document.getElementById('hud-score').innerText = state.score.toLocaleString();
+        }
+
+        function toggleAudio() {
+            state.audioMuted = !state.audioMuted;
+            audio.muted = state.audioMuted;
+            const icon = document.getElementById('audio-icon');
+            if (state.audioMuted) {
+                icon.className = 'fa-solid fa-volume-xmark text-xl text-rose-400';
+            } else {
+                icon.className = 'fa-solid fa-volume-high text-xl text-amber-400';
+            }
+        }
+
+        function openHomeConfirmModal() {
+            state.isPaused = true;
+            document.getElementById('exit-modal').classList.remove('hidden');
+        }
+
+        function closeHomeConfirmModal() {
+            document.getElementById('exit-modal').classList.add('hidden');
+            state.isPaused = false;
+        }
+
+        function confirmExitGame() {
+            saveScoreToLeaderboard(state.playerName, state.score);
+            document.getElementById('exit-modal').classList.add('hidden');
+            document.getElementById('game-hud').classList.add('hidden');
+            document.getElementById('player-nametag').classList.add('hidden');
+            document.getElementById('start-screen').classList.remove('hidden');
+            state.isPlaying = false;
+        }
+
+        function openFullLeaderboard() {
+            updateLeaderboardUI();
+            document.getElementById('leaderboard-modal').classList.remove('hidden');
+        }
+
+        function closeFullLeaderboard() {
+            document.getElementById('leaderboard-modal').classList.add('hidden');
+        }
+
+        // Lucky Wheel Logic
+        const wheelRewards = [
+            { label: "+100 คะแนน", type: "score", value: 100, color: "#f59e0b" },
+            { label: "+500 คะแนน", type: "score", value: 500, color: "#ec4899" },
+            { label: "+1,000 คะแนน", type: "score", value: 1000, color: "#8b5cf6" },
+            { label: "โบนัส X2!", type: "score", value: 2000, color: "#10b981" },
+            { label: "+250 คะแนน", type: "score", value: 250, color: "#3b82f6" },
+            { label: "JACKPOT!", type: "score", value: 5000, color: "#ef4444" }
+        ];
+
+        let wheelAngle = 0;
+
+        function drawWheel() {
+            const canvas = document.getElementById('wheel-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const numSlices = wheelRewards.length;
+            const sliceAngle = (Math.PI * 2) / numSlices;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate(wheelAngle);
+
+            for (let i = 0; i < numSlices; i++) {
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.arc(0, 0, canvas.width / 2, i * sliceAngle, (i + 1) * sliceAngle);
+                ctx.fillStyle = wheelRewards[i].color;
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = "#ffffff";
+                ctx.stroke();
+
+                // Text
+                ctx.save();
+                ctx.rotate(i * sliceAngle + sliceAngle / 2);
+                ctx.textAlign = "right";
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 14px Kanit";
+                ctx.fillText(wheelRewards[i].label, canvas.width / 2 - 15, 5);
+                ctx.restore();
+            }
+            ctx.restore();
+        }
+
+        function openLuckyWheel() {
+            state.isPaused = true;
+            document.getElementById('wheel-modal').classList.remove('hidden');
+            document.getElementById('btn-spin-wheel').classList.remove('hidden');
+            document.getElementById('btn-close-wheel').classList.add('hidden');
+            document.getElementById('wheel-result-msg').innerText = "กดปุ่มเพื่อเริ่มหมุนวงล้อ!";
+            drawWheel();
+        }
+
+        function spinWheel() {
+            if (state.wheelSpinning) return;
+            state.wheelSpinning = true;
+            document.getElementById('btn-spin-wheel').classList.add('hidden');
+
+            const targetSlice = Math.floor(Math.random() * wheelRewards.length);
+            const numSlices = wheelRewards.length;
+            const sliceAngle = (Math.PI * 2) / numSlices;
+            
+            // Calculate final angle to align pointer (top) with target slice
+            const targetAngle = (Math.PI * 2 * 5) + (Math.PI * 1.5 - (targetSlice * sliceAngle + sliceAngle / 2));
+            
+            let currentRotation = 0;
+            const duration = 4000;
+            const start = performance.now();
+
+            function animateWheel(time) {
+                const elapsed = time - start;
+                const progress = Math.min(elapsed / duration, 1);
+                // Ease out cubic
+                const easeOut = 1 - Math.pow(1 - progress, 3);
+                wheelAngle = easeOut * targetAngle;
+                drawWheel();
+                audio.playWheelTick();
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateWheel);
+                } else {
+                    state.wheelSpinning = false;
+                    state.wheelReward = wheelRewards[targetSlice];
+                    document.getElementById('wheel-result-msg').innerText = `🎉 คุณได้รางวัล: ${state.wheelReward.label}`;
+                    document.getElementById('btn-close-wheel').classList.remove('hidden');
+                    audio.playReward();
+                }
+            }
+            requestAnimationFrame(animateWheel);
+        }
+
+        function closeWheelModal() {
+            if (state.wheelReward) {
+                state.score += state.wheelReward.value;
+                updateScoreDisplay();
+                state.wheelReward = null;
+            }
+            document.getElementById('wheel-modal').classList.add('hidden');
+            state.isPaused = false;
+
+            // Start 4 hour cooldown
+            state.boxCooldownSeconds = 4 * 60 * 60;
+            updateBoxTimerDisplay();
+        }
+
+        function updateBoxTimerDisplay() {
+            const timerEl = document.getElementById('hud-box-timer');
+            if (state.boxCooldownSeconds <= 0) {
+                timerEl.innerText = "พร้อมเปิด!";
+                timerEl.className = "text-sm font-extrabold text-emerald-400 leading-tight";
+            } else {
+                const h = Math.floor(state.boxCooldownSeconds / 3600);
+                const m = Math.floor((state.boxCooldownSeconds % 3600) / 60);
+                const s = state.boxCooldownSeconds % 60;
+                timerEl.innerText = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+                timerEl.className = "text-sm font-extrabold text-amber-400 leading-tight";
+            }
+        }
+
+        setInterval(() => {
+            if (state.boxCooldownSeconds > 0) {
+                state.boxCooldownSeconds--;
+                updateBoxTimerDisplay();
+            }
+        }, 1000);
+
+        // Three.js Scene Setup
+        let scene, camera, renderer;
+        let playerGroup, playerBody, leftArm, rightArm, leftLeg, rightLeg;
+        const MAP_SIZE = 1500; // Expanded world map dimensions (1500x1500)
+
+        // Interactive Object Arrays
+        const buildings = []; // Array storing building collision boundaries
+        const coins = []; // Floating silver coins
+        let luckyBox = null; // Single mystery box on the map
+
+        // Player Motion Logic & Smooth Camera State
+        const playerPos = new THREE.Vector3(0, 0, 0);
+        const playerVel = new THREE.Vector3(0, 0, 0);
+        const smoothCamTarget = new THREE.Vector3(0, 1.5, 0);
+        let playerVelocityY = 0;
+        let isGrounded = true;
+        let playerRotation = 0;
+        let walkCycle = 0;
+
+        let cameraYaw = 0;       // Horizontal camera angle
+        let cameraPitch = 0.5;   // Vertical camera angle (radians)
+        const cameraDistance = 18;
+
+        // Input state
+        const keys = { w: false, a: false, s: false, d: false };
+        const joystickVec = { x: 0, y: 0 };
+
+        function init3D() {
+            const container = document.getElementById('game-canvas');
+
+            // Scene with Bright Blue Sky & Soft Fog
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x60a5fa); // Bright Sky Blue (#60a5fa)
+            scene.fog = new THREE.FogExp2(0x93c5fd, 0.0007); // Light Blue Fog (#93c5fd)
+
+            // Camera setup with far plane 4000
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 4000);
+
+            // WebGL Renderer
+            renderer = new THREE.WebGLRenderer({ canvas: container, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+            // Daylight Lighting: Clean Ambient Light + Bright Sun Light
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+            scene.add(ambientLight);
+
+            const sunLight = new THREE.DirectionalLight(0xfffbeb, 1.1);
+            sunLight.position.set(300, 450, -200);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048;
+            sunLight.shadow.mapSize.height = 2048;
+            sunLight.shadow.camera.near = 0.5;
+            sunLight.shadow.camera.far = 1200;
+            const d = 500;
+            sunLight.shadow.camera.left = -d;
+            sunLight.shadow.camera.right = d;
+            sunLight.shadow.camera.top = d;
+            sunLight.shadow.camera.bottom = -d;
+            scene.add(sunLight);
+
+            // Ground Voxel Grid
+            buildVoxelTerrain();
+
+            // Voxel Buildings & Trees
+            buildVoxelStructures();
+
+            // Voxel Player Model
+            buildVoxelPlayer();
+
+            // Spawn 100 Silver Coins across massive map
+            spawnCoins(100);
+
+            // Spawn Single Lucky Box (4-hour cooldown timer)
+            spawnLuckyBoxes();
+
+            // Setup Touch & Keyboard Controls
+            setupControls();
+
+            // Initial Leaderboard UI
+            updateLeaderboardUI();
+
+            // Resize listener
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function buildVoxelTerrain() {
+            // Ground Grass Base
+            const groundGeo = new THREE.BoxGeometry(MAP_SIZE, 2, MAP_SIZE);
+            const groundMat = new THREE.MeshLambertMaterial({ color: 0x48bb78 });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.position.y = -1;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // Voxel Grid pattern details on ground across vast map
+            const detailGeo = new THREE.BoxGeometry(4, 0.1, 4);
+            const detailMat = new THREE.MeshLambertMaterial({ color: 0x38a169 });
+            for(let i = 0; i < 600; i++) {
+                const rx = (Math.random() - 0.5) * (MAP_SIZE - 20);
+                const rz = (Math.random() - 0.5) * (MAP_SIZE - 20);
+                const patch = new THREE.Mesh(detailGeo, detailMat);
+                patch.position.set(Math.floor(rx/4)*4, 0.05, Math.floor(rz/4)*4);
+                scene.add(patch);
+            }
+        }
+
+        function buildVoxelStructures() {
+            // Colors for Voxel Buildings
+            const wallColors = [0x3b82f6, 0xef4444, 0x10b981, 0xf59e0b, 0x8b5cf6, 0x06b6d4];
+            
+            // Build 40 procedural Voxel Houses
+            for(let i = 0; i < 45; i++) {
+                const bx = (Math.random() - 0.5) * (MAP_SIZE - 200);
+                const bz = (Math.random() - 0.5) * (MAP_SIZE - 200);
+                if (Math.abs(bx) < 30 && Math.abs(bz) < 30) continue; // Keep spawn area clear
+
+                const width = Math.floor(4 + Math.random() * 4) * 2;
+                const height = Math.floor(5 + Math.random() * 8) * 2;
+                const depth = Math.floor(4 + Math.random() * 4) * 2;
+
+                const houseGroup = new THREE.Group();
+                
+                // Walls
+                const color = wallColors[Math.floor(Math.random() * wallColors.length)];
+                const wallGeo = new THREE.BoxGeometry(width, height, depth);
+                const wallMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.4 });
+                const wallMesh = new THREE.Mesh(wallGeo, wallMat);
+                wallMesh.position.y = height / 2;
+                wallMesh.castShadow = true;
+                wallMesh.receiveShadow = true;
+                houseGroup.add(wallMesh);
+
+                // Roof
+                const roofGeo = new THREE.ConeGeometry(Math.max(width, depth) * 0.8, 6, 4);
+                const roofMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.3 });
+                const roofMesh = new THREE.Mesh(roofGeo, roofMat);
+                roofMesh.position.y = height + 3;
+                roofMesh.rotation.y = Math.PI / 4;
+                roofMesh.castShadow = true;
+                houseGroup.add(roofMesh);
+
+                houseGroup.position.set(bx, 0, bz);
+                scene.add(houseGroup);
+
+                buildings.push({ x: bx, z: bz, radius: Math.max(width, depth) / 2 + 1 });
+            }
+
+            // Build 120 Voxel Trees
+            const trunkGeo = new THREE.BoxGeometry(1.2, 5, 1.2);
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x78350f });
+            const leavesGeo = new THREE.BoxGeometry(4, 4, 4);
+            const leavesMat = new THREE.MeshStandardMaterial({ color: 0x15803d });
+
+            for(let i = 0; i < 120; i++) {
+                const tx = (Math.random() - 0.5) * (MAP_SIZE - 100);
+                const tz = (Math.random() - 0.5) * (MAP_SIZE - 100);
+                if (Math.abs(tx) < 20 && Math.abs(tz) < 20) continue;
+
+                const treeGroup = new THREE.Group();
+                const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+                trunk.position.y = 2.5;
+                trunk.castShadow = true;
+                treeGroup.add(trunk);
+
+                const leaves = new THREE.Mesh(leavesGeo, leavesMat);
+                leaves.position.y = 6;
+                leaves.castShadow = true;
+                treeGroup.add(leaves);
+
+                treeGroup.position.set(tx, 0, tz);
+                scene.add(treeGroup);
+
+                buildings.push({ x: tx, z: tz, radius: 1.5 });
+            }
+        }
+
+        function buildVoxelPlayer() {
+            playerGroup = new THREE.Group();
+
+            // Head
+            const headGeo = new THREE.BoxGeometry(1.2, 1.2, 1.2);
+            const headMat = new THREE.MeshStandardMaterial({ color: 0xfde047 });
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.position.y = 2.4;
+            head.castShadow = true;
+            playerGroup.add(head);
+
+            // Body
+            const bodyGeo = new THREE.BoxGeometry(1.2, 1.5, 0.8);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xef4444 });
+            playerBody = new THREE.Mesh(bodyGeo, bodyMat);
+            playerBody.position.y = 1.2;
+            playerBody.castShadow = true;
+            playerGroup.add(playerBody);
+
+            // Arms
+            const armGeo = new THREE.BoxGeometry(0.4, 1.2, 0.4);
+            const armMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6 });
+
+            leftArm = new THREE.Mesh(armGeo, armMat);
+            leftArm.position.set(-0.8, 1.2, 0);
+            leftArm.castShadow = true;
+            playerGroup.add(leftArm);
+
+            rightArm = new THREE.Mesh(armGeo, armMat);
+            rightArm.position.set(0.8, 1.2, 0);
+            rightArm.castShadow = true;
+            playerGroup.add(rightArm);
+
+            // Legs
+            const legGeo = new THREE.BoxGeometry(0.5, 1.2, 0.5);
+            const legMat = new THREE.MeshStandardMaterial({ color: 0x1e293b });
+
+            leftLeg = new THREE.Mesh(legGeo, legMat);
+            leftLeg.position.set(-0.35, 0.6, 0);
+            leftLeg.castShadow = true;
+            playerGroup.add(leftLeg);
+
+            rightLeg = new THREE.Mesh(legGeo, legMat);
+            rightLeg.position.set(0.35, 0.6, 0);
+            rightLeg.castShadow = true;
+            playerGroup.add(rightLeg);
+
+            playerGroup.position.set(0, 0, 0);
+            scene.add(playerGroup);
+        }
+
+        function spawnCoins(count) {
+            const coinGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.2, 16);
+            const coinMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9, roughness: 0.1 });
+
+            for (let i = 0; i < count; i++) {
+                const coin = new THREE.Mesh(coinGeo, coinMat);
+                coin.rotation.x = Math.PI / 2;
+                
+                const cx = (Math.random() - 0.5) * (MAP_SIZE - 100);
+                const cz = (Math.random() - 0.5) * (MAP_SIZE - 100);
+                coin.position.set(cx, 1.2, cz);
+                coin.castShadow = true;
+
+                scene.add(coin);
+                coins.push(coin);
+            }
+        }
+
+        function spawnLuckyBoxes() {
+            const boxGeo = new THREE.BoxGeometry(1.6, 1.6, 1.6);
+            const boxMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.2, metalness: 0.5 });
+            luckyBox = new THREE.Mesh(boxGeo, boxMat);
+            luckyBox.position.set(10, 1, 10);
+            luckyBox.castShadow = true;
+            scene.add(luckyBox);
+        }
+
+        function setupControls() {
+            // Joystick logic
+            const zone = document.getElementById('joystick-zone');
+            const handle = document.getElementById('joystick-handle');
+            let touchId = null;
+            let startX = 0, startY = 0;
+
+            zone.addEventListener('touchstart', (e) => {
+                const touch = e.changedTouches[0];
+                touchId = touch.identifier;
+                startX = touch.clientX;
+                startY = touch.clientY;
+            });
+
+            zone.addEventListener('touchmove', (e) => {
+                for (let touch of e.changedTouches) {
+                    if (touch.identifier === touchId) {
+                        let dx = touch.clientX - startX;
+                        let dy = touch.clientY - startY;
+                        let dist = Math.sqrt(dx * dx + dy * dy);
+                        let maxDist = 35;
+
+                        if (dist > maxDist) {
+                            dx = (dx / dist) * maxDist;
+                            dy = (dy / dist) * maxDist;
+                        }
+
+                        handle.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+                        joystickVec.x = dx / maxDist;
+                        joystickVec.y = dy / maxDist;
+                    }
+                }
+            });
+
+            const resetJoystick = () => {
+                handle.style.transform = `translate(-50%, -50%)`;
+                joystickVec.x = 0;
+                joystickVec.y = 0;
+                touchId = null;
+            };
+
+            zone.addEventListener('touchend', resetJoystick);
+            zone.addEventListener('touchcancel', resetJoystick);
+
+            // Jump button
+            const jumpBtn = document.getElementById('btn-jump');
+            jumpBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                doJump();
+            });
+            jumpBtn.addEventListener('click', () => doJump());
+
+            // Keyboard
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.w = true;
+                if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.a = true;
+                if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.s = true;
+                if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.d = true;
+                if (e.key === ' ') doJump();
+            });
+
+            window.addEventListener('keyup', (e) => {
+                if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.w = false;
+                if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.a = false;
+                if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.s = false;
+                if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.d = false;
+            });
+        }
+
+        function doJump() {
+            if (isGrounded && state.isPlaying && !state.isPaused) {
+                playerVelocityY = 0.38;
+                isGrounded = false;
+                audio.playJump();
+            }
+        }
+
+        function animate() {
+            if (!state.isPlaying) return;
+            requestAnimationFrame(animate);
+
+            if (state.isPaused) return;
+
+            // Determine Movement Vector
+            let moveX = joystickVec.x;
+            let moveZ = joystickVec.y;
+
+            if (keys.w) moveZ = -1;
+            if (keys.s) moveZ = 1;
+            if (keys.a) moveX = -1;
+            if (keys.d) moveX = 1;
+
+            const isMoving = Math.abs(moveX) > 0.1 || Math.abs(moveZ) > 0.1;
+
+            if (isMoving) {
+                const moveSpeed = 0.22;
+                playerPos.x += moveX * moveSpeed;
+                playerPos.z += moveZ * moveSpeed;
+
+                // Rotation angle
+                playerRotation = Math.atan2(moveX, moveZ);
+                playerGroup.rotation.y = playerRotation;
+
+                // Walk animation
+                walkCycle += 0.2;
+                leftArm.rotation.x = Math.sin(walkCycle) * 0.6;
+                rightArm.rotation.x = -Math.sin(walkCycle) * 0.6;
+                leftLeg.rotation.x = -Math.sin(walkCycle) * 0.6;
+                rightLeg.rotation.x = Math.sin(walkCycle) * 0.6;
+            } else {
+                leftArm.rotation.x = 0;
+                rightArm.rotation.x = 0;
+                leftLeg.rotation.x = 0;
+                rightLeg.rotation.x = 0;
+            }
+
+            // Building collisions
+            buildings.forEach(b => {
+                const dx = playerPos.x - b.x;
+                const dz = playerPos.z - b.z;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+                if (dist < b.radius) {
+                    const angle = Math.atan2(dz, dx);
+                    playerPos.x = b.x + Math.cos(angle) * b.radius;
+                    playerPos.z = b.z + Math.sin(angle) * b.radius;
+                }
+            });
+
+            // Map Bounds
+            const halfMap = MAP_SIZE / 2 - 5;
+            playerPos.x = Math.max(-halfMap, Math.min(halfMap, playerPos.x));
+            playerPos.z = Math.max(-halfMap, Math.min(halfMap, playerPos.z));
+
+            // Gravity & Jump Physics
+            playerPos.y += playerVelocityY;
+            if (playerPos.y > 0) {
+                playerVelocityY -= 0.018;
+                isGrounded = false;
+            } else {
+                playerPos.y = 0;
+                playerVelocityY = 0;
+                isGrounded = true;
+            }
+
+            playerGroup.position.copy(playerPos);
+
+            // Update Name Tag position over head
+            const nametag = document.getElementById('player-nametag');
+            if (nametag && camera) {
+                const tempVec = new THREE.Vector3(playerPos.x, playerPos.y + 3.2, playerPos.z);
+                tempVec.project(camera);
+                const x = (tempVec.x * .5 + .5) * window.innerWidth;
+                const y = (-(tempVec.y * .5) + .5) * window.innerHeight;
+                nametag.style.left = `${x}px`;
+                nametag.style.top = `${y}px`;
+            }
+
+            // Smooth Camera Follow
+            smoothCamTarget.lerp(new THREE.Vector3(playerPos.x, playerPos.y + 2, playerPos.z), 0.1);
+            camera.position.x = smoothCamTarget.x;
+            camera.position.y = smoothCamTarget.y + 12;
+            camera.position.z = smoothCamTarget.z + 18;
+            camera.lookAt(smoothCamTarget);
+
+            // Coin collection logic & respawn
+            coins.forEach((coin, idx) => {
+                coin.rotation.z += 0.04;
+                const dist = playerPos.distanceTo(coin.position);
+                if (dist < 1.8) {
+                    audio.playCoin();
+                    state.score += 10;
+                    updateScoreDisplay();
+
+                    // Respawn coin elsewhere
+                    coin.position.x = (Math.random() - 0.5) * (MAP_SIZE - 100);
+                    coin.position.z = (Math.random() - 0.5) * (MAP_SIZE - 100);
+                }
+            });
+
+            // Lucky Box Collision Logic
+            if (luckyBox) {
+                luckyBox.rotation.y += 0.02;
+                const distBox = playerPos.distanceTo(luckyBox.position);
+                if (distBox < 2.2) {
+                    if (state.boxCooldownSeconds <= 0) {
+                        audio.playBoxHit();
+                        openLuckyWheel();
+                    }
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            if (!camera || !renderer) return;
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    </script>
+</body>
+</html>
