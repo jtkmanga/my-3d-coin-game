@@ -94,7 +94,7 @@
     <!-- FIREBASE & GAME SCRIPT -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getDatabase, ref, set, get, child, update, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = {
@@ -119,11 +119,6 @@
             isPlaying: false
         };
 
-        // Check Redirect Result
-        getRedirectResult(auth).catch((error) => {
-            console.error("Login Redirect Error:", error);
-        });
-
         // Listen for Auth State
         onAuthStateChanged(auth, async (user) => {
             if (user) {
@@ -137,15 +132,19 @@
                 document.getElementById('btn-google-login').classList.add('hidden');
                 document.getElementById('user-profile-info').classList.remove('hidden');
 
-                const snap = await get(child(ref(db), `users/${user.uid}`));
-                if (snap.exists()) {
-                    state.highScore = snap.val().highScore || 0;
-                } else {
-                    await set(ref(db, `users/${user.uid}`), {
-                        email: user.email,
-                        name: state.playerName,
-                        highScore: 0
-                    });
+                try {
+                    const snap = await get(child(ref(db), `users/${user.uid}`));
+                    if (snap.exists()) {
+                        state.highScore = snap.val().highScore || 0;
+                    } else {
+                        await set(ref(db, `users/${user.uid}`), {
+                            email: user.email,
+                            name: state.playerName,
+                            highScore: 0
+                        });
+                    }
+                } catch (e) {
+                    console.error("Database error:", e);
                 }
             } else {
                 state.currentUser = null;
@@ -179,7 +178,9 @@
 
         window.handleGoogleLogin = function() {
             const provider = new GoogleAuthProvider();
-            signInWithRedirect(auth, provider);
+            signInWithPopup(auth, provider).catch((error) => {
+                alert("เกิดข้อผิดพลาดในการล็อกอิน: " + error.message);
+            });
         };
 
         window.handleLogout = function() {
